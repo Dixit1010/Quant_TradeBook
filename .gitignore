@@ -1,0 +1,14 @@
+@"
+node_modules/
+.next/
+build/
+.env
+*.log
+*.node
+*.dll
+.vscode/
+.idea/
+.DS_Store
+out/
+package-lock.json
+"@ | Out-File -Encoding utf8 .gitignore
