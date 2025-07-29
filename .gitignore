@@ -1,14 +1,31 @@
-@"
+# Node modules
 node_modules/
-.next/
-build/
+
+# Environment variables
 .env
+.env.local
+
+# Build directories
+build/
+dist/
+.next/
+out/
+
+# Logs
 *.log
-*.node
-*.dll
+
+# IDE and editor folders
 .vscode/
 .idea/
+
+# System files
 .DS_Store
-out/
+
+# Lock files
 package-lock.json
-"@ | Out-File -Encoding utf8 .gitignore
+pnpm-lock.yaml
+yarn.lock
+
+# Others
+*.node
+*.dll
