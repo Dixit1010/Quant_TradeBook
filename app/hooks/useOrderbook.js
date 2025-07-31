@@ -1,7 +1,7 @@
 
 /*
 ================================================================================
-| FILE: app/hooks/useOrderbook.js (Improved Logic)                             |
+| FILE: app/hooks/useOrderbook.js (Final, Definitive Version)                  |
 ================================================================================
 */
 'use client';
@@ -26,13 +26,10 @@ export const useOrderbook = (venue, symbol) => {
         setError(null);
         setBids([]);
         setAsks([]);
-        if (ws.current) {
-            ws.current.close();
-        }
-        if (dataTimeout.current) {
-            clearTimeout(dataTimeout.current);
-        }
-        
+
+        if (ws.current) ws.current.close();
+        if (dataTimeout.current) clearTimeout(dataTimeout.current);
+
         const config = VENUE_CONFIG[venue];
         if (!config) {
             setError(`Invalid venue configuration: ${venue}`);
@@ -42,7 +39,7 @@ export const useOrderbook = (venue, symbol) => {
         const formattedSymbol = config.symbolFormat(symbol);
 
         ws.current = new WebSocket(config.wsUrl);
-        
+
         const localBids = new Map();
         const localAsks = new Map();
 
@@ -51,27 +48,30 @@ export const useOrderbook = (venue, symbol) => {
             ws.current.send(JSON.stringify(config.getSubscribeMsg(formattedSymbol)));
 
             dataTimeout.current = setTimeout(() => {
-                if (bids.length === 0 && asks.length === 0) {
-                    setError(`Connection timed out. No order book data received from ${venue} for ${formattedSymbol}. The symbol may be incorrect or the API may have changed.`);
-                    setIsLoading(false);
-                }
-            }, 10000);
+                setError(`Connection timed out. No valid order book data received from ${venue}. The symbol may be unsupported or the API may have changed.`);
+                setIsLoading(false);
+                ws.current.close();
+            }, 12000);
         };
 
         ws.current.onmessage = (event) => {
-            console.log(`[${venue} RAW DATA]:`, event.data);
-            const data = JSON.parse(event.data);
-
-            // UPDATED: More robust check for success/info messages
-            if (data.success === true || (data.event && ["subscribe", "info"].includes(data.event)) || data.result) {
-                console.log(`[${venue}] Received subscription confirmation or info message.`);
+            if (event.data === 'ping') {
+                ws.current.send('pong');
                 return;
             }
 
-            if (data.method === 'heartbeat') {
-                if (data.method === 'test') { // For Deribit
-                    ws.current.send(JSON.stringify({ jsonrpc: '2.0', method: 'public/test', params: {} }));
-                }
+            const data = JSON.parse(event.data);
+            console.log(`[${venue} RAW DATA]:`, data);
+            
+            // UPDATED: Explicit check for Deribit's test request
+            if (venue === 'Deribit' && data.method === 'heartbeat' && data.params?.type === 'test_request') {
+                console.log(`[${venue}] Received Deribit test request, sending response.`);
+                ws.current.send(JSON.stringify(config.getPongMsg(data)));
+                return;
+            }
+
+            if (data.event || data.success === true || data.result) {
+                console.log(`[${venue}] Received subscription confirmation or info message.`);
                 return;
             }
 
@@ -80,6 +80,9 @@ export const useOrderbook = (venue, symbol) => {
                 if (dataTimeout.current) {
                     clearTimeout(dataTimeout.current);
                     dataTimeout.current = null;
+                }
+                if (isLoading) {
+                    setIsLoading(false);
                 }
 
                 if (newOrders.isSnapshot) {
@@ -91,25 +94,17 @@ export const useOrderbook = (venue, symbol) => {
                     updates.forEach(([price, size]) => {
                         const priceNum = parseFloat(price);
                         const sizeNum = parseFloat(size);
-                        if (sizeNum === 0) {
-                            currentBook.delete(priceNum);
-                        } else {
-                            currentBook.set(priceNum, sizeNum);
-                        }
+                        if (sizeNum === 0) currentBook.delete(priceNum);
+                        else currentBook.set(priceNum, sizeNum);
                     });
                 };
 
                 updateOrderBook(localBids, newOrders.bids || []);
                 updateOrderBook(localAsks, newOrders.asks || []);
 
-                const sortedBids = Array.from(localBids.entries()).sort((a, b) => b[0] - a[0]);
-                const sortedAsks = Array.from(localAsks.entries()).sort((a, b) => a[0] - b[0]);
-
-                setBids(sortedBids);
-                setAsks(sortedAsks);
+                setBids(Array.from(localBids.entries()).sort((a, b) => b[0] - a[0]));
+                setAsks(Array.from(localAsks.entries()).sort((a, b) => a[0] - b[0]));
                 setLastUpdate(new Date());
-
-                if (isLoading) setIsLoading(false);
             }
         };
 

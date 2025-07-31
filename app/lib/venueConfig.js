@@ -1,41 +1,45 @@
 /*
 ================================================================================
-| FILE: app/lib/venueConfig.js (Corrected Subscription Topics)                 |
+| FILE: app/lib/venueConfig.js (Final, Definitive Version)                     |
 ================================================================================
 */
 
 export const VENUE_CONFIG = {
     Bybit: {
         wsUrl: 'wss://stream.bybit.com/v5/public/spot',
-        // UPDATED: Using 'orderbook.1' which is a more common and reliable topic.
-        // The '50' level depth might not be available for all symbols.
-        getSubscribeMsg: (sym) => ({ op: 'subscribe', args: [`orderbook.1.${sym}`] }),
-        getUnsubscribeMsg: (sym) => ({ op: 'unsubscribe', args: [`orderbook.1.${sym}`] }),
-        symbolFormat: (s) => s.replace('-', ''), // e.g., BTCUSDT
+        getSubscribeMsg: (sym) => ({ op: 'subscribe', args: [`orderbook.50.${sym}`] }),
+        getUnsubscribeMsg: (sym) => ({ op: 'unsubscribe', args: [`orderbook.50.${sym}`] }),
+        symbolFormat: (s) => s.replace('-', ''),
         processMessage: (data) => {
-            if (data.topic && data.topic.startsWith('orderbook.')) {
-                 if (data.type === 'snapshot' || data.type === 'delta') {
-                    return { bids: data.data.b, asks: data.data.a, isSnapshot: data.type === 'snapshot' };
+            const bids = data?.data?.b;
+            const asks = data?.data?.a;
+
+            if (data?.topic?.startsWith('orderbook.') && bids && asks) {
+                if (data.type === 'snapshot' || data.type === 'delta') {
+                    return { bids, asks, isSnapshot: data.type === 'snapshot' };
                 }
             }
             return null;
-        }
+        },
+        getPongMsg: () => ({ op: 'ping' })
     },
     OKX: {
         wsUrl: 'wss://ws.okx.com:8443/ws/v5/public',
-        // UPDATED: Using 'books5' for 5 levels of depth, a very standard channel.
         getSubscribeMsg: (sym) => ({ op: 'subscribe', args: [{ channel: 'books5', instId: sym }] }),
         getUnsubscribeMsg: (sym) => ({ op: 'unsubscribe', args: [{ channel: 'books5', instId: sym }] }),
-        symbolFormat: (s) => s.replace('USDT', '-USDT'), // e.g., BTC-USDT
+        symbolFormat: (s) => s.replace('USDT', '-USDT'),
         processMessage: (data) => {
-            if (data.arg?.channel === 'books5') {
-                // OKX sends a full snapshot in an 'update' action for this channel
+            const bids = data?.data?.[0]?.bids;
+            const asks = data?.data?.[0]?.asks;
+
+            if (data?.arg?.channel === 'books5' && bids && asks) {
                 if (data.action === 'snapshot' || data.action === 'update') {
-                    return { bids: data.data[0].bids, asks: data.data[0].asks, isSnapshot: true };
+                    return { bids, asks, isSnapshot: true };
                 }
             }
             return null;
-        }
+        },
+        getPongMsg: () => 'pong'
     },
     Deribit: {
         wsUrl: 'wss://www.deribit.com/ws/api/v2',
@@ -49,19 +53,29 @@ export const VENUE_CONFIG = {
             method: 'public/unsubscribe',
             params: { channels: [`book.${sym}.100ms`] }
         }),
-        symbolFormat: (s) => s.includes('-') ? s : 'BTC-PERPETUAL', // e.g., BTC-PERPETUAL
+        symbolFormat: (s) => s.includes('-') ? s : 'BTC-PERPETUAL',
         processMessage: (data) => {
-            if (data.method === 'subscription' && data.params?.channel.startsWith('book.')) {
-                const { bids, asks, type } = data.params.data;
-                // Deribit format is [type, price, amount]
+            const bids = data?.params?.data?.bids;
+            const asks = data?.params?.data?.asks;
+            const type = data?.params?.data?.type;
+
+            if (data?.method === 'subscription' && bids && asks) {
                 const formatOrders = (orders) => orders.map(o => [o[1], o[2]]);
-                return { 
-                    bids: formatOrders(bids), 
-                    asks: formatOrders(asks), 
-                    isSnapshot: type === 'snapshot' 
+                return {
+                    bids: formatOrders(bids),
+                    asks: formatOrders(asks),
+                    isSnapshot: type === 'snapshot'
                 };
             }
             return null;
-        }
+        },
+        // UPDATED: Correctly responds to Deribit's test request
+        getPongMsg: (request) => ({
+            jsonrpc: '2.0',
+            id: request.id, // Echo the ID from the server's request
+            method: 'public/test',
+            params: {} // Params for the test response must be empty
+        })
     }
 };
+
