@@ -8,17 +8,17 @@ This project is a real-time cryptocurrency orderbook viewer with order simulatio
 
 A full walkthrough demonstrating the application's features and a code review:
 
-👉 [Video Demonstration](#)  
-_(Replace `#` with your actual video link)_
+👉 [Video Demonstration](https://drive.google.com/file/d/11VOTnOQxjevLqFS0JxMz4_NV5F7k0BYg/view?usp=sharing)  
+
 
 ---
 
-## 🚀 Live Demo
+## 🚀 Documentation
 
 A live deployed version of the app:
 
-👉 [Live Demo](#)  
-_(Replace `#` with your deployment link, e.g., Vercel/Netlify)_
+👉 [Document](https://docs.google.com/document/d/1HouA2D_0a0wILvT0q7iCiDIDrMJEzyegLjwAMT0JX9k/edit?usp=sharing)  
+
 
 ---
 
